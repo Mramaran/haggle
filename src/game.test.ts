@@ -127,6 +127,8 @@ describe('resolveIntent', () => {
     expect(resolveIntent('DISCOUNT', "Alright, I'll take your offer.", state).intent).toBe('ACCEPT')
     expect(resolveIntent('DISCOUNT', 'My price is what it is.', state).intent).toBe('HOLD')
     expect(resolveIntent('HOLD', 'Sounds good, but my price is still $4,000.', state).intent).toBe('HOLD')
+    expect(resolveIntent('DISCOUNT', 'I understand budgets are tight, but $4,000 is what this work costs.', state).intent).toBe('HOLD')
+    expect(resolveIntent('DISCOUNT', 'I can include the extra page, but that adds $300 to the price.', state)).toEqual({ intent: 'CONDITION', amount: null })
   })
 
   it('keeps giveaways as discounts and walk-outs as walk-outs', () => {

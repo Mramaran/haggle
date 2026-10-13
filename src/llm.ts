@@ -121,6 +121,8 @@ export interface Spoken {
   ms: number
   /** Where the line came from: the model's first try, its second try, or the fixed template. */
   source: 'model' | 'retry' | 'template'
+  /** Every line the model wrote for this move, with what the checks found. Empty problems means it was used. */
+  tries: { text: string; problems: string[]; offerAdded: boolean }[]
 }
 
 const ATTEMPTS = 2
@@ -140,15 +142,20 @@ export async function speak(
   const started = performance.now()
   const prompt = replyPrompt(persona, ask, move, history)
   const alreadySaid = new Set(history.filter((line) => line.speaker === 'client').map((line) => line.text))
+  const tries: Spoken['tries'] = []
   for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
-    let { text } = await clientReply(engine, prompt, persona)
+    const written = (await clientReply(engine, prompt, persona)).text
     // A reply that only left the number out is fine once the game adds it.
-    if (text.length > 0 && missingOffer(text, move)) text = `${text} My offer is $${move.amount}.`
-    if (checkReply(text, move, quotable).ok && !alreadySaid.has(text)) {
-      return { text, ms: performance.now() - started, source: attempt === 0 ? 'model' : 'retry' }
+    const offerAdded = written.length > 0 && missingOffer(written, move)
+    const text = offerAdded ? `${written} My offer is $${move.amount}.` : written
+    const problems = checkReply(text, move, quotable).problems
+    if (alreadySaid.has(text)) problems.push('repeats an earlier line')
+    tries.push({ text: written, problems, offerAdded })
+    if (problems.length === 0) {
+      return { text, ms: performance.now() - started, source: attempt === 0 ? 'model' : 'retry', tries }
     }
   }
-  return { text: templateLine(persona, move), ms: performance.now() - started, source: 'template' }
+  return { text: templateLine(persona, move), ms: performance.now() - started, source: 'template', tries }
 }
 
 const CLASSIFY_SCHEMA = JSON.stringify({

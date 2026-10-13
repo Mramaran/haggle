@@ -1,0 +1,87 @@
+// One negotiation from opening line to ending. Shared by the game and the test page so
+// both run exactly the same steps: the model labels the turn, code rules settle the clear
+// cases, the game picks the client's move, and the model phrases it.
+
+import type { MLCEngine } from '@mlc-ai/web-llm'
+import { extractAmounts, newGame, nextMove, openingMove, resolveIntent } from './game'
+import type { GameState, Intent, Move, Persona } from './game'
+import { classifyPrompt, classifyTurn, speak } from './llm'
+import type { ChatLine, Spoken } from './llm'
+
+export const MAX_TURNS = 8
+
+/** One exchange, kept for the scorecard and for seeing what the model did on its own. */
+export interface TurnRecord {
+  player: string
+  /** The model's own label for the player's line, before any code rule. */
+  classified: Intent
+  classifiedRaw: string
+  /** The label the game acted on. Differs from `classified` when a code rule overrode the model. */
+  intent: Intent
+  amount: number | null
+  offerBefore: number
+  move: Move
+  reply: string
+  source: Spoken['source']
+  tries: Spoken['tries']
+}
+
+export interface Session {
+  engine: MLCEngine
+  persona: Persona
+  state: GameState
+  history: ChatLine[]
+  quotable: number[]
+  opening: Spoken | null
+  records: TurnRecord[]
+}
+
+export function newSession(engine: MLCEngine, persona: Persona, ask: number): Session {
+  return { engine, persona, state: newGame(ask, persona), history: [], quotable: [ask], opening: null, records: [] }
+}
+
+export function openerLine(ask: number): string {
+  return `My price for this project is $${ask.toLocaleString('en-US')}.`
+}
+
+async function clientSays(session: Session, move: Move): Promise<Spoken> {
+  const spoken = await speak(session.engine, session.persona, session.state.ask, move, session.history, session.quotable)
+  session.history.push({ speaker: 'client', text: spoken.text })
+  return spoken
+}
+
+/** The freelancer states their price and the client opens. */
+export async function openGame(session: Session): Promise<Spoken> {
+  session.history.push({ speaker: 'freelancer', text: openerLine(session.state.ask) })
+  session.opening = await clientSays(session, openingMove(session.state, session.persona))
+  return session.opening
+}
+
+export async function playTurn(session: Session, text: string): Promise<TurnRecord> {
+  const { state } = session
+  const classification = await classifyTurn(session.engine, classifyPrompt(text, state.playerPrice, state.offer))
+  const { intent, amount } = resolveIntent(classification.intent, text, state)
+  session.history.push({ speaker: 'freelancer', text })
+  session.quotable.push(...extractAmounts(text))
+  const next = nextMove(state, intent, amount, session.persona)
+  session.state = next.state
+  const spoken = await clientSays(session, next.move)
+  const record: TurnRecord = {
+    player: text,
+    classified: classification.intent,
+    classifiedRaw: classification.raw,
+    intent,
+    amount,
+    offerBefore: state.offer,
+    move: next.move,
+    reply: spoken.text,
+    source: spoken.source,
+    tries: spoken.tries,
+  }
+  session.records.push(record)
+  return record
+}
+
+export function isOver(session: Session): boolean {
+  return session.state.status !== 'open' || session.state.turn >= MAX_TURNS
+}

@@ -218,7 +218,8 @@ export function readPrice(text: string, state: GameState): number | null {
 const OFF_TOPIC =
   /\b(ignore (your|all|any|previous|the)|instructions?|system prompt|are you (an? )?(ai|bot|robot|human)|switch roles|role-?play|your (real |actual |max(imum)? |total )?budget|max(imum)? you can)\b/i
 const FIRM = /\b(price|rate|cost|quote|fee|firm|final|can'?t|cannot|won'?t|not able|no)\b/i
-const TRADES = /\b(if (you|we|i)|deposit|up ?front|in return|in exchange|as long as|provided (that|you)|on condition)\b/i
+const TRADES =
+  /\b(if (you|we|i)|deposit|up ?front|in return|in exchange|as long as|provided (that|you)|on condition|adds?|additional|costs? (extra|more)|extra (cost|charge|fee))\b/i
 const GIVES = /\b(free|for nothing|no charge|throw in|discount|knock|cheaper|come down|lower|reduce)\b/i
 const AGREES =
   /\b(i'?ll take (it|that|your offer)|i accept|it'?s a deal|you'?ve got a deal|you have a deal|we have a deal|agreed|let'?s do it|works for me|sounds good)\b/i
@@ -253,8 +254,8 @@ export function resolveIntent(
   // Questions and attempts to change the rules must not move the client.
   const idleQuestion = text.trim().endsWith('?') && !FIRM.test(text)
   if (amount === null && (OFF_TOPIC.test(text) || idleQuestion)) return { intent: 'OTHER', amount }
-  // A discount needs either a lower price or something given away.
-  if (intent === 'DISCOUNT' && amount === null && !GIVES.test(text)) return { intent: 'HOLD', amount }
+  // A discount needs either a lower price or something given away. By this point the price is not lower.
+  if (intent === 'DISCOUNT' && !GIVES.test(text)) return { intent: 'HOLD', amount }
   return { intent, amount }
 }
 

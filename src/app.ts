@@ -2,33 +2,17 @@
 
 import './app.css'
 import type { MLCEngine } from '@mlc-ai/web-llm'
-import { PERSONAS, extractAmounts, newGame, nextMove, openingMove, resolveIntent } from './game'
-import type { GameState, Intent, Move, Persona } from './game'
-import { classifyPrompt, classifyTurn, hasWebGpu, loadModel, pickGameModel, speak } from './llm'
-import type { ChatLine, Spoken } from './llm'
+import { PERSONAS } from './game'
+import type { GameState, Persona } from './game'
+import { hasWebGpu, loadModel, pickGameModel } from './llm'
+import type { Spoken } from './llm'
+import { MAX_TURNS, isOver, newSession, openGame, openerLine, playTurn } from './session'
+import type { Session, TurnRecord } from './session'
 
-const MAX_TURNS = 8
 const DEFAULT_ASK = 4000
 const persona: Persona = PERSONAS[0]
-
-/** One exchange, kept for the scorecard. */
-export interface TurnRecord {
-  player: string
-  intent: Intent
-  amount: number | null
-  offerBefore: number
-  move: Move
-  reply: string
-  source: Spoken['source']
-}
-
-interface Session {
-  engine: MLCEngine
-  state: GameState
-  history: ChatLine[]
-  quotable: number[]
-  records: TurnRecord[]
-}
+/** `?debug` shows, under each reply, what the model did by itself and what the game's rules changed. */
+const showWorkings = new URLSearchParams(location.search).has('debug')
 
 declare global {
   interface Window {
@@ -89,10 +73,26 @@ async function whileTyping<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
-async function clientSays(current: Session, move: Move): Promise<Spoken> {
-  const spoken = await speak(current.engine, persona, current.state.ask, move, current.history, current.quotable)
-  current.history.push({ speaker: 'client', text: spoken.text })
-  return spoken
+function describeReply(spoken: Spoken): string {
+  const rejected = spoken.tries.filter((attempt) => attempt.problems.length > 0)
+  const from =
+    spoken.source === 'template'
+      ? 'fixed template (the model failed the checks twice)'
+      : spoken.source === 'retry'
+        ? "the model's second try"
+        : spoken.tries[0]?.offerAdded
+          ? 'the model, with the offer added by the game'
+          : 'the model'
+  const why = rejected.map((attempt) => `rejected "${attempt.text}" (${attempt.problems.join(', ')})`).join('; ')
+  return `reply written by: ${from}${why ? `; ${why}` : ''}`
+}
+
+function addWorkings(spoken: Spoken, record?: TurnRecord) {
+  if (!showWorkings) return
+  const reading = record
+    ? `model read your line as ${record.classified}; game used ${record.intent}${record.classified === record.intent ? '' : ' (a code rule overrode the model)'}; move ${record.move.kind}. `
+    : ''
+  addLine('note', `${reading}${describeReply(spoken)}`)
 }
 
 function finish(current: Session) {
@@ -130,7 +130,7 @@ async function start() {
         $('loadtext').textContent = report.text
       })
     }
-    const current: Session = { engine, state: newGame(ask, persona), history: [], quotable: [ask], records: [] }
+    const current = newSession(engine, persona, ask)
     session = current
     $('log').replaceChildren()
     $('say').hidden = false
@@ -138,11 +138,10 @@ async function start() {
     show('game')
     updateMeta(current.state)
     setBusy(true)
-    const opener = `My price for this project is ${money(ask)}.`
-    addLine('freelancer', opener)
-    current.history.push({ speaker: 'freelancer', text: opener })
-    const spoken = await whileTyping(() => clientSays(current, openingMove(current.state, persona)))
+    addLine('freelancer', openerLine(ask))
+    const spoken = await whileTyping(() => openGame(current))
     addLine('client', spoken.text)
+    addWorkings(spoken)
     setBusy(false)
   } catch (error) {
     show('intro')
@@ -156,22 +155,11 @@ async function send(text: string) {
   addLine('freelancer', text)
   setBusy(true)
   try {
-    const spoken = await whileTyping(async () => {
-      const prompt = classifyPrompt(text, current.state.playerPrice, current.state.offer)
-      const classification = await classifyTurn(current.engine, prompt)
-      const { intent, amount } = resolveIntent(classification.intent, text, current.state)
-      current.history.push({ speaker: 'freelancer', text })
-      current.quotable.push(...extractAmounts(text))
-      const offerBefore = current.state.offer
-      const next = nextMove(current.state, intent, amount, persona)
-      current.state = next.state
-      const reply = await clientSays(current, next.move)
-      current.records.push({ player: text, intent, amount, offerBefore, move: next.move, reply: reply.text, source: reply.source })
-      return reply
-    })
-    addLine('client', spoken.text)
+    const record = await whileTyping(() => playTurn(current, text))
+    addLine('client', record.reply)
+    addWorkings({ text: record.reply, ms: 0, source: record.source, tries: record.tries }, record)
     updateMeta(current.state)
-    if (current.state.status !== 'open' || current.state.turn >= MAX_TURNS) {
+    if (isOver(current)) {
       finish(current)
       return
     }
