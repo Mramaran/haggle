@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Haggle: practise your rate</title>
+  </head>
+  <body>
+    <main>
+      <h1>Haggle</h1>
+      <p class="tag">Practise your rate against a client who will not make it easy. The client runs in this tab, on your own GPU.</p>
+
+      <section id="intro" class="card">
+        <h2>Your client</h2>
+        <p id="who"></p>
+        <label for="ask">Your price for the project, in dollars</label>
+        <input id="ask" type="number" value="4000" min="500" step="50" inputmode="numeric" />
+        <button id="start" type="button">Start negotiating</button>
+        <p id="notice" role="alert"></p>
+        <p class="small">The first visit downloads a 1.4 GB open model (Gemma 2 2B) into your browser, so it needs a computer with a graphics card. After that it loads from your browser's cache. Nothing you type leaves this device.</p>
+      </section>
+
+      <section id="loading" class="card" hidden>
+        <h2>Getting your client ready</h2>
+        <progress id="bar" max="1" value="0"></progress>
+        <p id="loadtext" class="small"></p>
+      </section>
+
+      <section id="game" class="card" hidden>
+        <div class="meta">
+          <span id="turns"></span>
+          <span id="offer"></span>
+          <span id="yours"></span>
+        </div>
+        <ol id="log" aria-live="polite"></ol>
+        <form id="say">
+          <textarea id="line" rows="2" placeholder="Type your reply. Enter sends it." aria-label="Your reply" required></textarea>
+          <button id="send" type="submit">Send</button>
+        </form>
+        <div id="end" hidden>
+          <h2 id="outcome"></h2>
+          <p id="detail"></p>
+          <button id="again" type="button">Play again</button>
+        </div>
+      </section>
+
+      <p class="small">The client is played by Gemma 2 2B, used under the <a href="https://ai.google.dev/gemma/terms">Gemma Terms of Use</a>.</p>
+    </main>
+    <script type="module" src="/src/app.ts"></script>
+  </body>
+</html>

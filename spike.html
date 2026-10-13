@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Haggle spike</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
+      pre, p { white-space: pre-wrap; }
+      details { margin: 0.5rem 0; }
+      summary { cursor: pointer; font-family: ui-monospace, monospace; }
+      select, button { font: inherit; padding: 0.3rem 0.6rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Haggle: go/no-go spike</h1>
+    <p>Plays scripted negotiations against a model running in this tab and measures whether it stays in character, respects the game's numbers, and classifies the freelancer's turns. The first run downloads the model.</p>
+    <p>
+      <select id="model" aria-label="Model"></select>
+      <button id="run">Run spike</button>
+      <button id="download">Download results</button>
+    </p>
+    <pre id="status">Idle.</pre>
+    <h2>Summary</h2>
+    <pre id="summary">No results yet.</pre>
+    <h2>Games</h2>
+    <div id="games"></div>
+    <script type="module" src="/src/spike.ts"></script>
+  </body>
+</html>
