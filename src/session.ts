@@ -19,6 +19,8 @@ export interface TurnRecord {
   /** The label the game acted on. Differs from `classified` when a code rule overrode the model. */
   intent: Intent
   amount: number | null
+  /** The player's own price before this turn, so the scorecard can see how far they dropped. */
+  priceBefore: number
   offerBefore: number
   move: Move
   reply: string
@@ -72,6 +74,7 @@ export async function playTurn(session: Session, text: string): Promise<TurnReco
     classifiedRaw: classification.raw,
     intent,
     amount,
+    priceBefore: state.playerPrice,
     offerBefore: state.offer,
     move: next.move,
     reply: spoken.text,

@@ -38,11 +38,25 @@
           <textarea id="line" rows="2" placeholder="Type your reply. Enter sends it." aria-label="Your reply" required></textarea>
           <button id="send" type="submit">Send</button>
         </form>
-        <div id="end" hidden>
-          <h2 id="outcome"></h2>
-          <p id="detail"></p>
-          <button id="again" type="button">Play again</button>
+      </section>
+
+      <section id="end" class="card scorecard" hidden>
+        <h2 id="cardtitle">Your scorecard</h2>
+        <p class="score"><span id="score"></span><span class="outof"> / 100</span></p>
+        <p id="grade" class="grade"></p>
+        <p id="outcome"></p>
+        <p id="detail"></p>
+        <blockquote id="worst" hidden>
+          <p id="worstquote"></p>
+          <footer id="worstnote"></footer>
+        </blockquote>
+        <ol id="moments"></ol>
+        <div class="actions">
+          <button id="share" type="button">Copy share link</button>
+          <button id="again" type="button" class="quiet">Play again</button>
         </div>
+        <p id="copied" class="small" role="status"></p>
+        <p class="small">The score is worked out by code from what you wrote: up to 60 points for how close the result is to the client's real limit, and 40 for never giving ground without getting something back.</p>
       </section>
 
       <p class="small">The client is played by Gemma 2 2B, used under the <a href="https://ai.google.dev/gemma/terms">Gemma Terms of Use</a>.</p>

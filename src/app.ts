@@ -2,8 +2,10 @@
 
 import './app.css'
 import type { MLCEngine } from '@mlc-ai/web-llm'
-import { PERSONAS } from './game'
+import { PERSONAS, newGame } from './game'
 import type { GameState, Persona } from './game'
+import { decodeCard, encodeCard, gradeFor, scoreGame, toShared } from './score'
+import type { Moment, SharedCard } from './score'
 import { hasWebGpu, loadModel, pickGameModel } from './llm'
 import type { Spoken } from './llm'
 import { MAX_TURNS, isOver, newSession, openGame, openerLine, playTurn } from './session'
@@ -95,26 +97,96 @@ function addWorkings(spoken: Spoken, record?: TurnRecord) {
   addLine('note', `${reading}${describeReply(spoken)}`)
 }
 
+/** Fills in the scorecard. `moments` is the turn-by-turn list, which only the player's own card has. */
+function renderCard(card: SharedCard, moments: readonly Moment[] | null, worstNote: string | null) {
+  $('score').textContent = String(card.score)
+  $('grade').textContent = gradeFor(card.score)
+  const share = Math.round((card.price / card.ask) * 100)
+  $('outcome').textContent =
+    card.outcome === 'deal'
+      ? `Deal at ${money(card.price)}, ${share}% of the ${money(card.ask)} asked.`
+      : card.outcome === 'walked'
+        ? `Walked away. ${card.personaName}'s last offer was ${money(card.price)} against an ask of ${money(card.ask)}.`
+        : `No deal before ${card.personaName} had to go. The last offer on the table was ${money(card.price)}.`
+  const left = card.outcome === 'deal' ? Math.max(0, card.ceiling - card.price) : 0
+  const limit = `${card.personaName}'s real limit was ${money(card.ceiling)}.`
+  const table = left > 0 ? ` ${money(left)} was still on the table.` : ''
+  const given =
+    card.concessions > 0
+      ? ` Ground given for nothing: ${card.concessions} time${card.concessions === 1 ? '' : 's'}${card.givenAway > 0 ? `, ${money(card.givenAway)} off the price` : ''}.`
+      : ' No ground given for nothing.'
+  $('detail').textContent = `${limit}${table}${given}`
+
+  $('worst').hidden = card.quote === null
+  if (card.quote !== null) {
+    $('worstquote').textContent = card.quote
+    $('worstnote').textContent = worstNote ?? `Turn ${card.turn ?? '?'}: the first time ground was given for nothing.`
+  }
+
+  const list = $('moments')
+  list.replaceChildren()
+  list.hidden = moments === null
+  for (const moment of moments ?? []) {
+    const item = document.createElement('li')
+    item.className = moment.good ? 'good' : 'bad'
+    const note = document.createElement('strong')
+    note.textContent = `Turn ${moment.turn}: ${moment.note}`
+    const quote = document.createElement('span')
+    quote.textContent = moment.quote
+    item.append(note, quote)
+    list.append(item)
+  }
+}
+
+let lastCard: SharedCard | null = null
+
 function finish(current: Session) {
   const { state } = current
-  let outcome: string
-  let detail: string
-  if (state.status === 'deal' && state.dealPrice !== null) {
-    const share = Math.round((state.dealPrice / state.ask) * 100)
-    outcome = `Deal at ${money(state.dealPrice)}`
-    detail = `That is ${share}% of the ${money(state.ask)} you asked for.`
-  } else if (state.status === 'walked') {
-    outcome = 'You walked away'
-    detail = `${persona.name}'s last offer was ${money(state.offer)}, against your ask of ${money(state.ask)}.`
-  } else {
-    outcome = 'No deal yet'
-    detail = `${persona.name} had to jump on another call. The last offer on the table was ${money(state.offer)}.`
-  }
-  $('outcome').textContent = outcome
-  $('detail').textContent = detail
+  const card = scoreGame({
+    personaName: persona.name,
+    ask: state.ask,
+    opening: newGame(state.ask, persona).offer,
+    ceiling: state.ceiling,
+    status: state.status,
+    dealPrice: state.dealPrice,
+    lastOffer: state.offer,
+    turns: current.records,
+  })
+  lastCard = toShared(card)
+  $('cardtitle').textContent = 'Your scorecard'
+  renderCard(lastCard, card.moments, card.worst ? `Turn ${card.worst.turn}: ${card.worst.note}` : null)
+  $('copied').textContent = ''
+  $('share').hidden = false
+  $('again').textContent = 'Play again'
   $('say').hidden = true
   $('end').hidden = false
-  $('again').focus()
+  $('end').scrollIntoView({ block: 'start' })
+}
+
+async function copyShareLink() {
+  if (!lastCard) return
+  const link = `${location.origin}${location.pathname}#card=${encodeCard(lastCard)}`
+  try {
+    await navigator.clipboard.writeText(link)
+    $('copied').textContent = 'Link copied. It holds your score and the one quoted line, nothing else.'
+  } catch {
+    $('copied').textContent = `Copy this link: ${link}`
+  }
+}
+
+/** A link with `#card=...` opens someone's scorecard. It needs no model, so it works on any device. */
+function showSharedCard(): boolean {
+  if (!location.hash.startsWith('#card=')) return false
+  const card = decodeCard(location.hash.slice('#card='.length))
+  if (!card) return false
+  $('cardtitle').textContent = `A round against ${card.personaName}`
+  renderCard(card, null, null)
+  $('share').hidden = true
+  $('again').textContent = 'Play your own round'
+  const end = $('end')
+  end.hidden = false
+  $('intro').before(end)
+  return true
 }
 
 async function start() {
@@ -135,6 +207,7 @@ async function start() {
     $('log').replaceChildren()
     $('say').hidden = false
     $('end').hidden = true
+    $('game').after($('end'))
     show('game')
     updateMeta(current.state)
     setBusy(true)
@@ -179,8 +252,14 @@ function init() {
   $('start').addEventListener('click', () => void start())
   $('again').addEventListener('click', () => {
     session = null
+    $('end').hidden = true
+    $('game').after($('end'))
+    history.replaceState(null, '', location.pathname + location.search)
     show('intro')
+    $('ask').focus()
   })
+  $('share').addEventListener('click', () => void copyShareLink())
+  showSharedCard()
   const line = $<HTMLTextAreaElement>('line')
   const submit = () => {
     const text = line.value.trim()

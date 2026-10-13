@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PERSONAS, checkReply, extractAmounts, newGame, nextMove, openingMove, resolveIntent, templateLine } from './game'
 import type { GameState, Intent, MoveKind } from './game'
+import { decodeCard, encodeCard, scoreGame } from './score'
 
 const lowballer = PERSONAS[0]
 
@@ -150,6 +151,82 @@ describe('templateLine', () => {
         expect(checkReply(templateLine(persona, move), move, []).problems).toEqual([])
       }
     }
+  })
+})
+
+describe('scoreGame', () => {
+  const base = { personaName: 'Marcus', ask: 4000, opening: 1800, ceiling: 3400 }
+
+  it('scores a player who caves and accepts the opening offer near zero, and quotes the first giveaway', () => {
+    const card = scoreGame({
+      ...base,
+      status: 'deal',
+      dealPrice: 1800,
+      lastOffer: 1800,
+      turns: [
+        { player: 'Okay, I could do $3,800.', intent: 'DISCOUNT', amount: 3800, priceBefore: 4000 },
+        { player: 'Hmm, alright, $3,600 then?', intent: 'DISCOUNT', amount: 3600, priceBefore: 3800 },
+        { player: 'Fine, I can throw in the extra page for free as well.', intent: 'DISCOUNT', amount: null, priceBefore: 3600 },
+        { player: "Alright, I'll take your offer.", intent: 'ACCEPT', amount: null, priceBefore: 3600 },
+      ],
+    })
+    expect(card).toMatchObject({ outcome: 'deal', price: 1800, score: 4, grade: 'Rolled over', concessions: 3, givenAway: 400, leftOnTable: 1600 })
+    expect(card.worst).toMatchObject({ turn: 1, quote: 'Okay, I could do $3,800.' })
+    expect(card.headline).toBe('Turn 1: Dropped your price by $200 and asked for nothing back.')
+  })
+
+  it('scores holding firm to the ceiling and closing there at 100', () => {
+    const card = scoreGame({
+      ...base,
+      status: 'deal',
+      dealPrice: 3400,
+      lastOffer: 3400,
+      turns: [
+        { player: 'My price is firm at $4,000.', intent: 'HOLD', amount: 4000, priceBefore: 4000 },
+        { player: "Alright, I'll take your offer.", intent: 'ACCEPT', amount: null, priceBefore: 4000 },
+      ],
+    })
+    expect(card).toMatchObject({ score: 100, grade: 'Held the line', concessions: 0, leftOnTable: 0, worst: null })
+  })
+
+  it('does not count a price cut made in exchange for something as a concession', () => {
+    const card = scoreGame({
+      ...base,
+      status: 'open',
+      dealPrice: null,
+      lastOffer: 2600,
+      turns: [
+        { player: 'I can do $3,700 if we drop the blog.', intent: 'CONDITION', amount: 3700, priceBefore: 4000 },
+        { player: "I'd need a 50% deposit.", intent: 'CONDITION', amount: null, priceBefore: 3700 },
+      ],
+    })
+    expect(card).toMatchObject({ outcome: 'timeout', concessions: 0, givenAway: 0, score: 60 })
+    expect(card.moments.every((moment) => moment.good)).toBe(true)
+  })
+})
+
+describe('share links', () => {
+  const shared = {
+    personaName: 'Marcus',
+    ask: 4000,
+    outcome: 'deal' as const,
+    price: 1800,
+    ceiling: 3400,
+    score: 4,
+    quote: 'Okay, I could do $3,800 — “final”.',
+    turn: 1,
+    givenAway: 400,
+    concessions: 3,
+  }
+
+  it('round-trips a card through the link encoding', () => {
+    expect(decodeCard(encodeCard(shared))).toEqual(shared)
+  })
+
+  it('rejects links that are not cards', () => {
+    expect(decodeCard('not-a-card')).toBeNull()
+    expect(decodeCard(btoa(JSON.stringify({ v: 1, p: 'Marcus', o: 'won', a: 1, pr: 1, c: 1, s: 1, g: 0, n: 0, q: null })))).toBeNull()
+    expect(decodeCard(btoa(JSON.stringify({ v: 1, p: 'Marcus', o: 'deal', a: 'lots', pr: 1, c: 1, s: 1, g: 0, n: 0, q: null })))).toBeNull()
   })
 })
 
