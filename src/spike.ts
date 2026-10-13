@@ -289,10 +289,18 @@ async function run(modelId: string, personas: readonly Persona[]) {
       report.games.push(await playGame(engine, persona, script))
       report.summary = summarise(report.games)
       render(report)
+      save(report)
     }
   }
   report.finished = true
-  setStatus(`Done. Model loaded in ${report.loadMs} ms.`)
+  save(report)
+  document.title = 'FINISHED: Haggle spike'
+  setStatus(`FINISHED all ${total} games. Model loaded in ${report.loadMs} ms. Results were saved to output/spike/.`)
+}
+
+/** Posts the report to the dev server, which writes it to output/spike/. Best effort. */
+function save(report: SpikeReport) {
+  fetch('/__spike-result', { method: 'POST', body: JSON.stringify(report) }).catch(() => {})
 }
 
 function download(report: SpikeReport) {
