@@ -8,6 +8,10 @@ Built for the DEV Hacktoberfest 2026 Open-Source AI Challenge, Week 2: Side Hust
 
 ## Play
 
+Play it at **https://haggle.mrmaran.workers.dev/**
+
+To run it locally:
+
 ```bash
 npm install
 npm run dev
