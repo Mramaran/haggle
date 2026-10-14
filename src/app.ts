@@ -57,10 +57,39 @@ function setBusy(busy: boolean) {
   if (!busy) $('line').focus()
 }
 
+/** Fills a column of the price tape: every figure so far, the latest one live and the rest struck through. */
+function fillFigures(id: string, figures: readonly number[]) {
+  const list = $(id)
+  list.replaceChildren()
+  figures.forEach((figure, index) => {
+    const item = document.createElement('li')
+    item.textContent = money(figure)
+    if (index < figures.length - 1) item.className = 'gone'
+    list.append(item)
+  })
+}
+
+/** Each distinct value in order, so a held price is not listed twice. */
+const changes = (values: readonly number[]) => values.filter((value, index) => index === 0 || value !== values[index - 1])
+
 function updateMeta(state: GameState) {
-  $('turns').textContent = `Turn ${Math.min(state.turn + 1, MAX_TURNS)} of ${MAX_TURNS}`
-  $('offer').textContent = `${persona.name}'s offer: ${money(state.offer)}`
-  $('yours').textContent = `Your price: ${money(state.playerPrice)}`
+  const records = session?.records ?? []
+  fillFigures('yourprices', changes([state.ask, ...records.map((record) => record.amount ?? record.priceBefore), state.playerPrice]))
+  fillFigures('offers', changes([newGame(state.ask, persona).offer, ...records.map((record) => record.move.amount)]))
+  $('theirlabel').textContent = `${persona.name}'s offer`
+  const gap = state.playerPrice - state.offer
+  $('gap').textContent = gap > 0 ? `${money(gap)} apart` : 'Prices meet'
+  $('turns').textContent = state.status === 'open' ? `Turn ${Math.min(state.turn + 1, MAX_TURNS)} of ${MAX_TURNS}` : ''
+  $('limit').hidden = true
+  $('limit').classList.remove('stamped')
+}
+
+/** At the end, the client's hidden limit is stamped onto the tape. */
+function revealLimit(state: GameState) {
+  const limit = $('limit')
+  limit.textContent = `${persona.name}'s real limit: ${money(state.ceiling)}`
+  limit.hidden = false
+  limit.classList.add('stamped')
 }
 
 /** Shows a typing note while the model works, then removes it. */
@@ -161,6 +190,7 @@ function finish(current: Session) {
   $('again').textContent = 'Play again'
   $('say').hidden = true
   $('end').hidden = false
+  revealLimit(state)
   $('end').scrollIntoView({ block: 'start' })
 }
 
@@ -250,7 +280,7 @@ function renderPersonas() {
     const name = document.createElement('strong')
     name.textContent = candidate.name
     const role = document.createElement('span')
-    role.textContent = `${candidate.role}. ${candidate.style}`
+    role.textContent = `${candidate.role.charAt(0).toUpperCase()}${candidate.role.slice(1)}. ${candidate.style}`
     label.append(input, name, role)
     group.append(label)
   }

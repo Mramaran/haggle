@@ -4,63 +4,81 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Haggle: practise your rate</title>
+    <meta name="description" content="Rehearse your freelance rate against a difficult client played by an open model that runs in your browser." />
+    <title>Haggle: rehearse your rate</title>
   </head>
   <body>
     <main>
-      <h1>Haggle</h1>
-      <p class="tag">Practise your rate against a client who will not make it easy. The client runs in this tab, on your own GPU.</p>
+      <header class="masthead">
+        <h1>Haggle</h1>
+        <p class="tag">Rehearse your rate with a client who won't make it easy. The client runs on your own computer, so nothing you type leaves it.</p>
+      </header>
 
-      <section id="intro" class="card">
-        <h2>Pick your client</h2>
+      <section id="intro" class="sheet">
+        <h2>Who are you quoting?</h2>
         <div id="personas" class="personas" role="radiogroup" aria-label="Client"></div>
-        <label for="ask">Your price for the project, in dollars</label>
-        <input id="ask" type="number" value="4000" min="500" step="50" inputmode="numeric" />
-        <button id="start" type="button">Start negotiating</button>
-        <button id="scripted" type="button" class="quiet">Play without the AI (no download)</button>
+        <label for="ask" class="field-label">Your price for the project</label>
+        <div class="money-input">
+          <span aria-hidden="true">$</span>
+          <input id="ask" type="number" value="4000" min="500" step="50" inputmode="numeric" />
+        </div>
+        <div class="actions">
+          <button id="start" type="button">Start negotiating</button>
+          <button id="scripted" type="button" class="quiet">Play without the AI (no download)</button>
+        </div>
         <p id="notice" role="alert"></p>
-        <p class="small">The first visit downloads a 1.4 GB open model (Gemma 2 2B) into your browser, so it needs a computer with a graphics card. After that it loads from your browser's cache. Nothing you type leaves this device.</p>
+        <p class="small">The first game downloads a 1.4 GB open model (Gemma 2 2B) into your browser, so it needs a computer with a graphics card. After that it loads from your browser's cache.</p>
       </section>
 
-      <section id="loading" class="card" hidden>
+      <section id="loading" class="sheet" hidden>
         <h2>Getting your client ready</h2>
         <progress id="bar" max="1" value="0"></progress>
         <p id="loadtext" class="small"></p>
       </section>
 
-      <section id="game" class="card" hidden>
-        <div class="meta">
-          <span id="turns"></span>
-          <span id="offer"></span>
-          <span id="yours"></span>
+      <section id="game" class="table" hidden>
+        <aside class="tape" aria-label="Where the numbers stand">
+          <div class="side yours">
+            <h3>Your price</h3>
+            <ol id="yourprices" class="figures"></ol>
+          </div>
+          <p id="gap" class="gap"></p>
+          <div class="side theirs">
+            <h3 id="theirlabel">Their offer</h3>
+            <ol id="offers" class="figures"></ol>
+          </div>
+          <p id="limit" class="limit" hidden></p>
+          <p id="turns" class="turns"></p>
+        </aside>
+        <div class="chat">
+          <ol id="log" aria-live="polite"></ol>
+          <form id="say">
+            <textarea id="line" rows="2" placeholder="Type your reply. Enter sends it." aria-label="Your reply" required></textarea>
+            <button id="send" type="submit">Send</button>
+          </form>
         </div>
-        <ol id="log" aria-live="polite"></ol>
-        <form id="say">
-          <textarea id="line" rows="2" placeholder="Type your reply. Enter sends it." aria-label="Your reply" required></textarea>
-          <button id="send" type="submit">Send</button>
-        </form>
       </section>
 
-      <section id="end" class="card scorecard" hidden>
+      <section id="end" class="receipt" hidden>
         <h2 id="cardtitle">Your scorecard</h2>
-        <p class="score"><span id="score"></span><span class="outof"> / 100</span></p>
-        <p id="grade" class="grade"></p>
-        <p id="outcome"></p>
-        <p id="detail"></p>
+        <p id="outcome" class="outcome"></p>
+        <p id="detail" class="detail"></p>
         <blockquote id="worst" hidden>
           <p id="worstquote"></p>
           <footer id="worstnote"></footer>
         </blockquote>
-        <ol id="moments"></ol>
+        <ol id="moments" class="lines"></ol>
+        <p class="total"><span>Score</span><span><strong id="score"></strong> / 100</span></p>
+        <p id="grade" class="grade"></p>
         <div class="actions">
           <button id="share" type="button">Copy share link</button>
           <button id="again" type="button" class="quiet">Play again</button>
         </div>
         <p id="copied" class="small" role="status"></p>
-        <p class="small">The score is worked out by code from what you wrote: up to 60 points for how close the result is to the client's real limit, and 40 for never giving ground without getting something back.</p>
+        <p class="small">Scored by code from what you wrote: up to 60 points for how close the result is to the client's real limit, and 40 for never giving ground without getting something back.</p>
       </section>
 
-      <p class="small">The client is played by Gemma 2 2B, used under the <a href="https://ai.google.dev/gemma/terms">Gemma Terms of Use</a>.</p>
+      <p class="small credit">The client is played by Gemma 2 2B, used under the <a href="https://ai.google.dev/gemma/terms">Gemma Terms of Use</a>.</p>
     </main>
     <script type="module" src="/src/app.ts"></script>
   </body>
