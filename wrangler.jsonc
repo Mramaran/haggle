@@ -1,0 +1,8 @@
+// Cloudflare Workers config: serves the static Vite build in dist/ with no server code.
+{
+  "name": "haggle",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist"
+  }
+}
