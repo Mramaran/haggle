@@ -79,7 +79,14 @@ function updateMeta(state: GameState) {
   fillFigures('offers', changes([newGame(state.ask, persona).offer, ...records.map((record) => record.move.amount)]))
   $('theirlabel').textContent = `${persona.name}'s offer`
   const gap = state.playerPrice - state.offer
-  $('gap').textContent = gap > 0 ? `${money(gap)} apart` : 'Prices meet'
+  $('gap').textContent =
+    state.status === 'deal' && state.dealPrice !== null
+      ? `Deal at ${money(state.dealPrice)}`
+      : state.status === 'walked'
+        ? 'You walked away'
+        : gap > 0
+          ? `${money(gap)} apart`
+          : 'Prices meet'
   $('turns').textContent = state.status === 'open' ? `Turn ${Math.min(state.turn + 1, MAX_TURNS)} of ${MAX_TURNS}` : ''
   $('limit').hidden = true
   $('limit').classList.remove('stamped')

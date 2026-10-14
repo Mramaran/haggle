@@ -132,6 +132,11 @@ describe('resolveIntent', () => {
     expect(resolveIntent('DISCOUNT', 'I can include the extra page, but that adds $300 to the price.', state)).toEqual({ intent: 'CONDITION', amount: null })
   })
 
+  it('does not let a question count as a trade', () => {
+    expect(resolveIntent('CONDITION', "What's your real budget?", state).intent).toBe('OTHER')
+    expect(resolveIntent('CONDITION', 'Could you pay a deposit up front?', state).intent).toBe('CONDITION')
+  })
+
   it('keeps giveaways as discounts and walk-outs as walk-outs', () => {
     expect(resolveIntent('DISCOUNT', 'Fine, I can throw in the extra page for free as well.', state).intent).toBe('DISCOUNT')
     expect(resolveIntent('WALK', "If that's your budget, I don't think I'm the right fit.", state).intent).toBe('WALK')
@@ -283,6 +288,7 @@ describe('checkReply', () => {
     const looping = "Okay, let's go. Let's go. Let's go. Let's go."
     expect(checkReply(looping, move, []).problems).toEqual(expect.arrayContaining(['repeats itself', 'does not state the offer']))
     expect(checkReply("Let's do it. I'm excited.", move, []).problems).toContain('accepts without being told to')
+    expect(checkReply("$1800 is my final number and I'm serious. Let's get this done.", move, []).problems).toContain('accepts without being told to')
   })
 
   it('does not mistake ordinary talk for accepting or switching roles', () => {

@@ -247,13 +247,15 @@ export function resolveIntent(
   if (AGREES.test(text) && !leaving) intent = 'ACCEPT'
   if (intent === 'ACCEPT' && amount !== null && amount > state.offer) intent = 'HOLD'
   if (intent === 'ACCEPT' || intent === 'WALK') return { intent, amount }
+  const trades = TRADES.test(text)
+  // Questions and attempts to change the rules must not move the client, whatever the model
+  // called them. In the play-test it labelled "What's your real budget?" a trade.
+  const idleQuestion = text.trim().endsWith('?') && !FIRM.test(text)
+  if (amount === null && !trades && (OFF_TOPIC.test(text) || idleQuestion)) return { intent: 'OTHER', amount }
   // Asking for something in return is a trade, whatever else the message does.
-  if (intent === 'CONDITION' || TRADES.test(text)) return { intent: 'CONDITION', amount }
+  if (intent === 'CONDITION' || trades) return { intent: 'CONDITION', amount }
   // A lower price with nothing asked in return is a discount, however it is phrased.
   if (amount !== null && amount < state.playerPrice) return { intent: 'DISCOUNT', amount }
-  // Questions and attempts to change the rules must not move the client.
-  const idleQuestion = text.trim().endsWith('?') && !FIRM.test(text)
-  if (amount === null && (OFF_TOPIC.test(text) || idleQuestion)) return { intent: 'OTHER', amount }
   // A discount needs either a lower price or something given away. By this point the price is not lower.
   if (intent === 'DISCOUNT' && !GIVES.test(text)) return { intent: 'HOLD', amount }
   return { intent, amount }
@@ -316,7 +318,9 @@ const BREAKS_CHARACTER =/\b(as an ai|language model|i am an ai|i'm an ai|i am an
 // A client can fairly say "my price is $X" about their own offer, so that phrase is not a role switch.
 const SWITCHES_ROLE = /\b(my (hourly )?rate is|as a freelancer,? i|i charge)\b/i
 // Phrases that close a deal. A bare "deal" is not one: "a good deal" and "a big deal" are ordinary talk.
-const ACCEPTS = /\b(it'?s a deal|we have a deal|you'?ve got a deal|you have a deal|agreed[.!,]|i accept|i['’]?ll take it|let'?s go with (your|that) (price|number)|let['’]?s (do it|get started))/i
+// Seen from the model in the play-test: "Let's get this done." on a final offer reads as agreeing.
+const ACCEPTS =
+  /\b(it'?s a deal|we have a deal|you'?ve got a deal|you have a deal|agreed[.!,]|i accept|i['’]?ll take it|let'?s go with (your|that) (price|number)|let['’]?s (do it|do this|get started|get this done|make (it|this) happen)|sounds good)/i
 // On these moves the game shows the amount itself, so the reply need not repeat it.
 const AMOUNT_OPTIONAL: readonly MoveKind[] = ['DEAL', 'LET_GO']
 const REVEALS_BUDGET = /\b(my|our) (max(imum)?|real|actual|total) budget is\b/i
