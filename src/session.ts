@@ -3,7 +3,7 @@
 // cases, the game picks the client's move, and the model phrases it.
 
 import type { MLCEngine } from '@mlc-ai/web-llm'
-import { extractAmounts, newGame, nextMove, openingMove, resolveIntent } from './game'
+import { extractAmounts, newGame, nextMove, openingMove, resolveIntent, ruleIntent, templateLine } from './game'
 import type { GameState, Intent, Move, Persona } from './game'
 import { classifyPrompt, classifyTurn, speak } from './llm'
 import type { ChatLine, Spoken } from './llm'
@@ -28,8 +28,45 @@ export interface TurnRecord {
   tries: Spoken['tries']
 }
 
+/** What reads the player's lines and writes the client's: the open model, or rules and fixed lines. */
+export interface Brain {
+  kind: 'model' | 'scripted'
+  read(text: string, state: GameState): Promise<{ classified: Intent; raw: string; intent: Intent; amount: number | null }>
+  reply(persona: Persona, ask: number, move: Move, history: readonly ChatLine[], quotable: readonly number[]): Promise<Spoken>
+}
+
+/** The real game: the model labels each turn and phrases each reply, with code rules on top. */
+export function modelBrain(engine: MLCEngine): Brain {
+  return {
+    kind: 'model',
+    async read(text, state) {
+      const classification = await classifyTurn(engine, classifyPrompt(text, state.playerPrice, state.offer))
+      return { classified: classification.intent, raw: classification.raw, ...resolveIntent(classification.intent, text, state) }
+    },
+    reply: (persona, ask, move, history, quotable) => speak(engine, persona, ask, move, history, quotable),
+  }
+}
+
+/**
+ * No model at all: word cues read the turn and fixed lines answer it. Used where the browser
+ * cannot run the model, and as the baseline the model is compared against.
+ */
+export function scriptedBrain(): Brain {
+  let lineCount = 0
+  return {
+    kind: 'scripted',
+    async read(text, state) {
+      const reading = ruleIntent(text, state)
+      return { classified: reading.intent, raw: '(rules only)', ...reading }
+    },
+    async reply(persona, _ask, move) {
+      return { text: templateLine(persona, move, lineCount++), ms: 0, source: 'template', tries: [] }
+    },
+  }
+}
+
 export interface Session {
-  engine: MLCEngine
+  brain: Brain
   persona: Persona
   state: GameState
   history: ChatLine[]
@@ -38,8 +75,8 @@ export interface Session {
   records: TurnRecord[]
 }
 
-export function newSession(engine: MLCEngine, persona: Persona, ask: number): Session {
-  return { engine, persona, state: newGame(ask, persona), history: [], quotable: [ask], opening: null, records: [] }
+export function newSession(brain: Brain, persona: Persona, ask: number): Session {
+  return { brain, persona, state: newGame(ask, persona), history: [], quotable: [ask], opening: null, records: [] }
 }
 
 export function openerLine(ask: number): string {
@@ -47,7 +84,7 @@ export function openerLine(ask: number): string {
 }
 
 async function clientSays(session: Session, move: Move): Promise<Spoken> {
-  const spoken = await speak(session.engine, session.persona, session.state.ask, move, session.history, session.quotable)
+  const spoken = await session.brain.reply(session.persona, session.state.ask, move, session.history, session.quotable)
   session.history.push({ speaker: 'client', text: spoken.text })
   return spoken
 }
@@ -61,8 +98,7 @@ export async function openGame(session: Session): Promise<Spoken> {
 
 export async function playTurn(session: Session, text: string): Promise<TurnRecord> {
   const { state } = session
-  const classification = await classifyTurn(session.engine, classifyPrompt(text, state.playerPrice, state.offer))
-  const { intent, amount } = resolveIntent(classification.intent, text, state)
+  const { classified, raw, intent, amount } = await session.brain.read(text, state)
   session.history.push({ speaker: 'freelancer', text })
   session.quotable.push(...extractAmounts(text))
   const next = nextMove(state, intent, amount, session.persona)
@@ -70,8 +106,8 @@ export async function playTurn(session: Session, text: string): Promise<TurnReco
   const spoken = await clientSays(session, next.move)
   const record: TurnRecord = {
     player: text,
-    classified: classification.intent,
-    classifiedRaw: classification.raw,
+    classified,
+    classifiedRaw: raw,
     intent,
     amount,
     priceBefore: state.playerPrice,

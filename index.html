@@ -12,11 +12,12 @@
       <p class="tag">Practise your rate against a client who will not make it easy. The client runs in this tab, on your own GPU.</p>
 
       <section id="intro" class="card">
-        <h2>Your client</h2>
-        <p id="who"></p>
+        <h2>Pick your client</h2>
+        <div id="personas" class="personas" role="radiogroup" aria-label="Client"></div>
         <label for="ask">Your price for the project, in dollars</label>
         <input id="ask" type="number" value="4000" min="500" step="50" inputmode="numeric" />
         <button id="start" type="button">Start negotiating</button>
+        <button id="scripted" type="button" class="quiet">Play without the AI (no download)</button>
         <p id="notice" role="alert"></p>
         <p class="small">The first visit downloads a 1.4 GB open model (Gemma 2 2B) into your browser, so it needs a computer with a graphics card. After that it loads from your browser's cache. Nothing you type leaves this device.</p>
       </section>

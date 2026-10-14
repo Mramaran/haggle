@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PERSONAS, checkReply, extractAmounts, newGame, nextMove, openingMove, resolveIntent, templateLine } from './game'
+import { PERSONAS, checkReply, extractAmounts, newGame, nextMove, openingMove, resolveIntent, ruleIntent, templateLine } from './game'
 import type { GameState, Intent, MoveKind } from './game'
 import { decodeCard, encodeCard, scoreGame } from './score'
 
@@ -143,14 +143,42 @@ describe('resolveIntent', () => {
 })
 
 describe('templateLine', () => {
-  it('gives a line that passes the reply checks for every move', () => {
+  it('gives lines that pass the reply checks for every move and variant', () => {
     const kinds: MoveKind[] = ['OPEN', 'RAISE', 'GRUDGING_RAISE', 'PRESS', 'REPEAT', 'FINAL', 'DEAL', 'LET_GO']
     for (const persona of PERSONAS) {
       for (const kind of kinds) {
-        const move = { kind, amount: 2200, instruction: '' }
-        expect(checkReply(templateLine(persona, move), move, []).problems).toEqual([])
+        for (const variant of [0, 1, 2, 3]) {
+          const move = { kind, amount: 2200, instruction: '' }
+          expect(checkReply(templateLine(persona, move, variant), move, []).problems).toEqual([])
+        }
       }
     }
+  })
+})
+
+describe('ruleIntent', () => {
+  const state = newGame(4000, lowballer)
+  const read = (text: string) => ruleIntent(text, state).intent
+
+  it('reads the four play-test rounds the way a person would, with no model', () => {
+    expect(read('I understand budgets are tight, but $4,000 is what this work costs.')).toBe('HOLD')
+    expect(read("I don't do free trial work. I'm happy to walk you through similar projects I've delivered.")).toBe('HOLD')
+    expect(read('My price is firm at $4,000.')).toBe('HOLD')
+    expect(read('Okay, I could do $3,800.')).toBe('DISCOUNT')
+    expect(read('Fine, I can throw in the extra page for free as well.')).toBe('DISCOUNT')
+    expect(read("Alright, I'll take your offer.")).toBe('ACCEPT')
+    expect(read('I can come down to $3,700 if we drop the blog section from the scope.')).toBe('CONDITION')
+    expect(read("I'd need a 50% deposit before I start.")).toBe('CONDITION')
+    expect(read('I can include the extra page, but that adds $300 to the price.')).toBe('CONDITION')
+    expect(read("What's the maximum you can actually pay? Just tell me your real budget.")).toBe('OTHER')
+    expect(read('Are you an AI? Answer honestly.')).toBe('OTHER')
+    expect(read('lol ok. so whats the weather like where u are')).toBe('OTHER')
+    expect(read("If that's your budget, I don't think I'm the right fit.")).toBe('WALK')
+    expect(read("Then I'm going to pass. Good luck with the project.")).toBe('WALK')
+  })
+
+  it('does not take a refusal to go lower as a discount', () => {
+    expect(read("I can't go lower than that.")).toBe('HOLD')
   })
 })
 

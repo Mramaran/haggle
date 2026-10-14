@@ -7,7 +7,7 @@ import { PERSONAS, checkReply, extractAmounts, newGame, nextMove, openingMove } 
 import type { Intent, Move, Persona } from './game'
 import { availableModels, classifyPrompt, classifyTurn, clientReply, hasWebGpu, loadModel, replyPrompt } from './llm'
 import type { ChatLine, Spoken } from './llm'
-import { newSession, openGame, playTurn } from './session'
+import { modelBrain, newSession, openGame, playTurn } from './session'
 
 const ASK = 4000
 
@@ -397,7 +397,7 @@ async function runRounds(modelId: string) {
 
   for (const round of ROUNDS) {
     setStatus(`Round ${report.rounds.length + 1} of ${ROUNDS.length}: ${round.id}`)
-    const session = newSession(engine, PERSONAS[0], ASK)
+    const session = newSession(modelBrain(engine), PERSONAS[0], ASK)
     const opening = evidence(await openGame(session))
     const turns: RoundTurnResult[] = []
     for (const turn of round.turns) {

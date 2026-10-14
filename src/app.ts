@@ -8,11 +8,11 @@ import { decodeCard, encodeCard, gradeFor, scoreGame, toShared } from './score'
 import type { Moment, SharedCard } from './score'
 import { hasWebGpu, loadModel, pickGameModel } from './llm'
 import type { Spoken } from './llm'
-import { MAX_TURNS, isOver, newSession, openGame, openerLine, playTurn } from './session'
-import type { Session, TurnRecord } from './session'
+import { MAX_TURNS, isOver, modelBrain, newSession, openGame, openerLine, playTurn, scriptedBrain } from './session'
+import type { Brain, Session, TurnRecord } from './session'
 
 const DEFAULT_ASK = 4000
-const persona: Persona = PERSONAS[0]
+let persona: Persona = PERSONAS[0]
 /** `?debug` shows, under each reply, what the model did by itself and what the game's rules changed. */
 const showWorkings = new URLSearchParams(location.search).has('debug')
 
@@ -65,13 +65,14 @@ function updateMeta(state: GameState) {
 
 /** Shows a typing note while the model works, then removes it. */
 async function whileTyping<T>(work: () => Promise<T>): Promise<T> {
-  const wait = warmedUp ? '' : ' The first reply warms up your GPU and can take half a minute.'
+  const usesModel = session?.brain.kind === 'model'
+  const wait = usesModel && !warmedUp ? ' The first reply warms up your GPU and can take half a minute.' : ''
   const note = addLine('note', `${persona.name} is typing…${wait}`)
   try {
     return await work()
   } finally {
     note.remove()
-    warmedUp = true
+    if (usesModel) warmedUp = true
   }
 }
 
@@ -189,20 +190,26 @@ function showSharedCard(): boolean {
   return true
 }
 
-async function start() {
+async function start(mode: Brain['kind']) {
   const typed = Math.round(Number($<HTMLInputElement>('ask').value) / 50) * 50
   const ask = Number.isFinite(typed) && typed >= 500 ? typed : DEFAULT_ASK
   $('notice').textContent = ''
   show('loading')
   try {
-    if (!engine) {
-      const model = new URLSearchParams(location.search).get('model') ?? (await pickGameModel())
-      engine = await loadModel(model, (report) => {
-        $<HTMLProgressElement>('bar').value = report.progress
-        $('loadtext').textContent = report.text
-      })
+    let brain: Brain
+    if (mode === 'model') {
+      if (!engine) {
+        const model = new URLSearchParams(location.search).get('model') ?? (await pickGameModel())
+        engine = await loadModel(model, (report) => {
+          $<HTMLProgressElement>('bar').value = report.progress
+          $('loadtext').textContent = report.text
+        })
+      }
+      brain = modelBrain(engine)
+    } else {
+      brain = scriptedBrain()
     }
-    const current = newSession(engine, persona, ask)
+    const current = newSession(brain, persona, ask)
     session = current
     $('log').replaceChildren()
     $('say').hidden = false
@@ -211,6 +218,9 @@ async function start() {
     show('game')
     updateMeta(current.state)
     setBusy(true)
+    if (mode === 'scripted') {
+      addLine('note', `Scripted version: ${persona.name}'s replies are fixed lines and your moves are read by simple rules. The AI client needs a browser with WebGPU.`)
+    }
     addLine('freelancer', openerLine(ask))
     const spoken = await whileTyping(() => openGame(current))
     addLine('client', spoken.text)
@@ -218,8 +228,33 @@ async function start() {
     setBusy(false)
   } catch (error) {
     show('intro')
-    $('notice').textContent = `Could not start: ${error instanceof Error ? error.message : String(error)}`
+    $('notice').textContent = `Could not start the AI client: ${error instanceof Error ? error.message : String(error)}. You can still play without the AI.`
   }
+}
+
+function pickPersona(id: string) {
+  persona = PERSONAS.find((candidate) => candidate.id === id) ?? PERSONAS[0]
+  for (const input of document.querySelectorAll<HTMLInputElement>('input[name="persona"]')) input.checked = input.value === persona.id
+}
+
+function renderPersonas() {
+  const group = $('personas')
+  for (const candidate of PERSONAS) {
+    const label = document.createElement('label')
+    label.className = 'persona'
+    const input = document.createElement('input')
+    input.type = 'radio'
+    input.name = 'persona'
+    input.value = candidate.id
+    input.addEventListener('change', () => pickPersona(candidate.id))
+    const name = document.createElement('strong')
+    name.textContent = candidate.name
+    const role = document.createElement('span')
+    role.textContent = `${candidate.role}. ${candidate.style}`
+    label.append(input, name, role)
+    group.append(label)
+  }
+  pickPersona(persona.id)
 }
 
 async function send(text: string) {
@@ -243,13 +278,14 @@ async function send(text: string) {
 }
 
 function init() {
-  $('who').textContent = `${persona.name}, ${persona.role}`
+  renderPersonas()
   if (!hasWebGpu()) {
     $('notice').textContent =
-      'This browser cannot run the model (no WebGPU). Try a current Chrome or Edge on a computer with a graphics card.'
+      'This browser cannot run the AI client (no WebGPU). The version without the AI works anywhere; for the AI client, use a current Chrome or Edge on a computer with a graphics card.'
     $<HTMLButtonElement>('start').disabled = true
   }
-  $('start').addEventListener('click', () => void start())
+  $('start').addEventListener('click', () => void start('model'))
+  $('scripted').addEventListener('click', () => void start('scripted'))
   $('again').addEventListener('click', () => {
     session = null
     $('end').hidden = true

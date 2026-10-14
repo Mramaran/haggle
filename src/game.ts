@@ -259,27 +259,57 @@ export function resolveIntent(
   return { intent, amount }
 }
 
-/** A plain line for each move, used when the model's reply fails the checks twice. */
-export function templateLine(persona: Persona, move: Move): string {
-  const amount = `$${move.amount}`
-  switch (move.kind) {
-    case 'OPEN':
-      return `Honestly, that's more than I planned to spend. I can do ${amount}. ${persona.pressureLine}`
-    case 'RAISE':
-      return `Fine, I can stretch to ${amount}, and that's me doing you a favour.`
-    case 'GRUDGING_RAISE':
-      return `Hm. I'm not sold on that, but I'll move to ${amount}.`
-    case 'PRESS':
-      return `Still too much. ${amount} is where I am. ${persona.pressureLine}`
-    case 'REPEAT':
-      return `Let's stay on the project. My offer is ${amount}. ${persona.pressureLine}`
-    case 'FINAL':
-      return `${amount} is my final number. I can't go higher.`
-    case 'DEAL':
-      return `Deal at ${amount}. Glad we got there.`
-    case 'LET_GO':
-      return `${amount} was the best I could do. Good luck.`
+/** A plain line for each move, used when the model's reply fails the checks twice and in the scripted version. */
+export function templateLine(persona: Persona, move: Move, variant = 0): string {
+  const amount = `$${move.amount.toLocaleString('en-US')}`
+  const lines: Record<MoveKind, string[]> = {
+    OPEN: [`Honestly, that's more than I planned to spend. I can do ${amount}. ${persona.pressureLine}`],
+    RAISE: [
+      `Fine, I can stretch to ${amount}, and that's me doing you a favour.`,
+      `Okay, ${amount}. That's already more than I wanted to spend.`,
+      `You drive a hard bargain. I'll go to ${amount}.`,
+    ],
+    GRUDGING_RAISE: [
+      `Hm. I'm not sold on that, but I'll move to ${amount}.`,
+      `That's a big ask. Still, I can do ${amount}.`,
+      `I don't love it, but fine: ${amount}.`,
+    ],
+    PRESS: [
+      `Still too much. ${amount} is where I am. ${persona.pressureLine}`,
+      `That doesn't change much for me. I'm at ${amount}. ${persona.pressureLine}`,
+      `Closer, but no. ${amount}. ${persona.pressureLine}`,
+    ],
+    REPEAT: [
+      `Let's stay on the project. My offer is ${amount}. ${persona.pressureLine}`,
+      `Not sure what that has to do with it. I'm offering ${amount}.`,
+      `Back to business: ${amount} is my offer.`,
+    ],
+    FINAL: [`${amount} is my final number. I can't go higher.`, `I really can't go past ${amount}. That's it.`],
+    DEAL: [`Deal at ${amount}. Glad we got there.`],
+    LET_GO: [`${amount} was the best I could do. Good luck.`],
   }
+  const options = lines[move.kind]
+  return options[variant % options.length]
+}
+
+const REFUSES = /\b(can'?t|cannot|won'?t|don'?t|do not|never|not able|unable|no)\b/i
+
+/**
+ * The game's own reading of a line, with no model: the scripted version uses it, and the
+ * write-up compares it with the model. It starts from simple word cues and then applies the
+ * same rules as `resolveIntent`.
+ */
+export function ruleIntent(text: string, state: GameState): { intent: Intent; amount: number | null } {
+  const amount = readPrice(text, state)
+  const lower = amount !== null && amount < state.playerPrice
+  let guess: Intent = 'OTHER'
+  if (LEAVING.test(text) || NOT_A_FIT.test(text)) guess = 'WALK'
+  else if (AGREES.test(text)) guess = 'ACCEPT'
+  else if (TRADES.test(text)) guess = 'CONDITION'
+  else if (REFUSES.test(text) && !lower) guess = 'HOLD'
+  else if (lower || GIVES.test(text)) guess = 'DISCOUNT'
+  else if (amount !== null || FIRM.test(text)) guess = 'HOLD'
+  return resolveIntent(guess, text, state)
 }
 
 const BREAKS_CHARACTER =/\b(as an ai|language model|i am an ai|i'm an ai|i am an assistant|i'm an assistant|as a chatbot)\b/i
