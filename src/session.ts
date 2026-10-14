@@ -2,10 +2,10 @@
 // both run exactly the same steps: the model labels the turn, code rules settle the clear
 // cases, the game picks the client's move, and the model phrases it.
 
-import type { MLCEngine } from '@mlc-ai/web-llm'
-import { extractAmounts, newGame, nextMove, openingMove, resolveIntent, ruleIntent, templateLine } from './game'
+// Nothing here loads the model library: the model brain lives in llm.ts and is imported only
+// when someone starts the AI client, so shared scorecards and the no-AI version stay small.
+import { extractAmounts, newGame, nextMove, openingMove, ruleIntent, templateLine } from './game'
 import type { GameState, Intent, Move, Persona } from './game'
-import { classifyPrompt, classifyTurn, speak } from './llm'
 import type { ChatLine, Spoken } from './llm'
 
 export const MAX_TURNS = 8
@@ -33,18 +33,6 @@ export interface Brain {
   kind: 'model' | 'scripted'
   read(text: string, state: GameState): Promise<{ classified: Intent; raw: string; intent: Intent; amount: number | null }>
   reply(persona: Persona, ask: number, move: Move, history: readonly ChatLine[], quotable: readonly number[]): Promise<Spoken>
-}
-
-/** The real game: the model labels each turn and phrases each reply, with code rules on top. */
-export function modelBrain(engine: MLCEngine): Brain {
-  return {
-    kind: 'model',
-    async read(text, state) {
-      const classification = await classifyTurn(engine, classifyPrompt(text, state.playerPrice, state.offer))
-      return { classified: classification.intent, raw: classification.raw, ...resolveIntent(classification.intent, text, state) }
-    },
-    reply: (persona, ask, move, history, quotable) => speak(engine, persona, ask, move, history, quotable),
-  }
 }
 
 /**

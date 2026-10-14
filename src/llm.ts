@@ -3,8 +3,21 @@
 
 import { CreateMLCEngine, prebuiltAppConfig } from '@mlc-ai/web-llm'
 import type { InitProgressReport, MLCEngine } from '@mlc-ai/web-llm'
-import { INTENTS, checkReply, missingOffer, templateLine } from './game'
+import { INTENTS, checkReply, missingOffer, resolveIntent, templateLine } from './game'
 import type { Intent, Move, Persona } from './game'
+import type { Brain } from './session'
+
+/** The real game: the model labels each turn and phrases each reply, with code rules on top. */
+export function modelBrain(engine: MLCEngine): Brain {
+  return {
+    kind: 'model',
+    async read(text, state) {
+      const classification = await classifyTurn(engine, classifyPrompt(text, state.playerPrice, state.offer))
+      return { classified: classification.intent, raw: classification.raw, ...resolveIntent(classification.intent, text, state) }
+    },
+    reply: (persona, ask, move, history, quotable) => speak(engine, persona, ask, move, history, quotable),
+  }
+}
 
 // Gemma 2 2B is the smallest model that held a hostile client role in the spike
 // (see output/spike/). The others are kept for the spike page's comparisons.

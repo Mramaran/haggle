@@ -6,9 +6,10 @@ import { PERSONAS, newGame } from './game'
 import type { GameState, Persona } from './game'
 import { decodeCard, encodeCard, gradeFor, scoreGame, toShared } from './score'
 import type { Moment, SharedCard } from './score'
-import { hasWebGpu, loadModel, pickGameModel } from './llm'
 import type { Spoken } from './llm'
-import { MAX_TURNS, isOver, modelBrain, newSession, openGame, openerLine, playTurn, scriptedBrain } from './session'
+import { MAX_TURNS, isOver, newSession, openGame, openerLine, playTurn, scriptedBrain } from './session'
+
+const hasWebGpu = () => 'gpu' in navigator
 import type { Brain, Session, TurnRecord } from './session'
 
 const DEFAULT_ASK = 4000
@@ -228,6 +229,9 @@ async function start(mode: Brain['kind']) {
   try {
     let brain: Brain
     if (mode === 'model') {
+      // The model library is several megabytes, so it loads only when the AI client is wanted.
+      if (!engine) $('loadtext').textContent = 'Loading the code that runs the model…'
+      const { loadModel, modelBrain, pickGameModel } = await import('./llm')
       if (!engine) {
         const model = new URLSearchParams(location.search).get('model') ?? (await pickGameModel())
         engine = await loadModel(model, (report) => {

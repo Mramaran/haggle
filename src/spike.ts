@@ -5,9 +5,9 @@
 import type { MLCEngine } from '@mlc-ai/web-llm'
 import { PERSONAS, checkReply, extractAmounts, newGame, nextMove, openingMove } from './game'
 import type { Intent, Move, Persona } from './game'
-import { availableModels, classifyPrompt, classifyTurn, clientReply, hasWebGpu, loadModel, replyPrompt } from './llm'
+import { availableModels, classifyPrompt, classifyTurn, clientReply, hasWebGpu, loadModel, modelBrain, replyPrompt } from './llm'
 import type { ChatLine, Spoken } from './llm'
-import { modelBrain, newSession, openGame, playTurn } from './session'
+import { newSession, openGame, playTurn } from './session'
 
 const ASK = 4000
 
