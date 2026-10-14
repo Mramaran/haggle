@@ -107,6 +107,16 @@ describe('resolveIntent', () => {
     expect(resolveIntent('HOLD', 'So how is your week going?', state).intent).toBe('OTHER')
   })
 
+  it('does not let keyboard mashing count as holding firm', () => {
+    for (const text of ['dasfsgs', 'afrfwdw', 'asdgewsadf asdafagqwq', '...']) {
+      expect(resolveIntent('HOLD', text, state).intent).toBe('OTHER')
+      expect(resolveIntent('CONDITION', text, state).intent).toBe('OTHER')
+    }
+    expect(resolveIntent('HOLD', 'No.', state).intent).toBe('HOLD')
+    expect(resolveIntent('HOLD', 'Nope, still $4,000', state).intent).toBe('HOLD')
+    expect(resolveIntent('HOLD', "That's my number.", state).intent).toBe('HOLD')
+  })
+
   it('still counts a firm reply that ends in a question', () => {
     expect(resolveIntent('HOLD', 'The price stays at $4,000. What part of the scope matters most to you?', state).intent).toBe('HOLD')
   })

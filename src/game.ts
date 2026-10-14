@@ -226,6 +226,11 @@ const AGREES =
 const LEAVING =
   /\b(pass|walk(ing)? away|not (the right|a good) fit|declin(e|ing)|leav(e|ing)|no deal|goodbye|good luck|mov(e|ing) on|(not going to|won'?t|doesn'?t|isn'?t going to) work|i'?m out|done here)\b/i
 
+// Any real reply contains at least one of these. Keyboard mashing contains none, and the model
+// has labelled it holding firm, which made the client raise his offer for nonsense.
+const ENGLISH =
+  /\b(i|i'?m|i'?ll|i'?d|me|my|you|your|we|our|it|it'?s|that|that'?s|this|the|a|an|is|are|was|be|do|don'?t|can|could|will|would|to|of|for|and|but|or|so|not|no|nope|yes|yeah|nah|ok|okay|sure|fine|hmm|sorry|thanks|too|low|high|little|more|less|much|never|pass|hundred|thousand|price|rate|budget|deal|work|project|still|stay|same|firm|final)\b/i
+
 // "I don't think I'm the right fit": the negation and the phrase can sit a few words apart.
 const NOT_A_FIT = /(not|n['’]?t)\b[^.?!]{0,30}\b(the right|a good) fit\b/i
 
@@ -239,6 +244,7 @@ export function resolveIntent(
   state: GameState,
 ): { intent: Intent; amount: number | null } {
   const amount = readPrice(text, state)
+  if (amount === null && !ENGLISH.test(text)) return { intent: 'OTHER', amount }
   const leaving = LEAVING.test(text) || NOT_A_FIT.test(text)
   let intent = classified
   // "Happy to walk you through my work" is not walking away.
