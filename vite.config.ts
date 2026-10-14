@@ -35,4 +35,8 @@ function spikeResults(): Plugin {
   }
 }
 
-export default defineConfig({ plugins: [spikeResults()] })
+export default defineConfig({
+  plugins: [spikeResults()],
+  // Unit tests only; the Playwright specs in tests/e2e run with `npm run e2e`.
+  test: { include: ['src/**/*.test.ts'] },
+})
